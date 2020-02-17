@@ -144,6 +144,32 @@ where
         self.inner.exact_match(&ip.nibbles().as_ref(), masklen)
     }
 
+    /// Perform exact match lookup of `ip`/`masklen` and return the
+    /// value as mutable.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use treebitmap::IpLookupTable;
+    /// use std::net::Ipv6Addr;
+    ///
+    /// let mut table = IpLookupTable::new();
+    /// let prefix = Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 0);
+    /// let masklen = 32;
+    /// table.insert(prefix, masklen, "foo");
+    ///
+    /// assert_eq!(table.exact_match(prefix, masklen), Some(&"foo"));
+    /// // Mutate value
+    /// if let Some(value) = table.exact_match_mut(prefix, masklen) {
+    ///     *value = &"bar";
+    /// }
+    /// // Get new value
+    /// assert_eq!(table.exact_match(prefix, masklen), Some(&"bar"));
+    /// ```
+    pub fn exact_match_mut(&mut self, ip: A, masklen: u32) -> Option<&mut T> {
+        self.inner.exact_match_mut(&ip.nibbles().as_ref(), masklen)
+    }
+
     /// Perform longest match lookup of `ip` and return the best matching
     /// prefix, designated by ip, masklen, along with its value.
     ///

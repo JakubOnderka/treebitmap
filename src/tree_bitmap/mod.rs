@@ -337,7 +337,7 @@ impl<T: Sized> TreeBitmap<T> {
         self.len
     }
 
-    pub fn exact_match(&self, nibbles: &[u8], masklen: u32) -> Option<&T> {
+    fn exact_match_internal(&self, nibbles: &[u8], masklen: u32) -> Option<(AllocatorHandle, u32)> {
         let mut cur_hdl = self.root_handle();
         let mut cur_index = 0;
         let mut bits_left = masklen;
@@ -357,11 +357,11 @@ impl<T: Sized> TreeBitmap<T> {
             let reached_final_node = bits_left < 4 || (cur_node.is_endnode() && bits_left == 4);
 
             if reached_final_node {
-                match cur_node.match_internal(bitmap) {
+                return match cur_node.match_internal(bitmap) {
                     MatchResult::Match(result_hdl, result_index, _) => {
-                        return Some(self.results.get(&result_hdl, result_index));
+                        Some((result_hdl, result_index))
                     }
-                    _ => return None,
+                    _ => None,
                 }
             }
 
@@ -374,6 +374,18 @@ impl<T: Sized> TreeBitmap<T> {
                 _ => return None,
             }
         }
+    }
+
+    pub fn exact_match(&self, nibbles: &[u8], masklen: u32) -> Option<&T> {
+        self.exact_match_internal(nibbles, masklen).map(move |(result_hdl, result_index)| {
+            self.results.get(&result_hdl, result_index)
+        })
+    }
+
+    pub fn exact_match_mut(&mut self, nibbles: &[u8], masklen: u32) -> Option<&mut T> {
+        self.exact_match_internal(nibbles, masklen).map(move |(result_hdl, result_index)| {
+            self.results.get_mut(&result_hdl, result_index)
+        })
     }
 
     /// Remove prefix. Returns existing value if the prefix previously existed.

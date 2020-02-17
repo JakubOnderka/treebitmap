@@ -286,11 +286,17 @@ fn issue_13() {
         table.exact_match(Ipv4Addr::new(49, 255, 11, 16), 28),
         Some(&28)
     );
+    assert_eq!(
+        table.exact_match_mut(Ipv4Addr::new(49, 255, 11, 16), 28),
+        Some(&mut 28)
+    );
     println!("insert 32");
     table.insert(ADDR, 32, 32);
 
     println!("match 32");
     assert_eq!(table.exact_match(ADDR, 32), Some(&32));
+    assert_eq!(table.exact_match_mut(ADDR, 32), Some(&mut 32));
+
     assert!(table.longest_match(ADDR).is_some());
     assert!(table.longest_match_mut(ADDR).is_some());
 
