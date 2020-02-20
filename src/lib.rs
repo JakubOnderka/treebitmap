@@ -226,19 +226,18 @@ where
     /// let lookupip = Ipv6Addr::new(0x2001, 0xdb8, 0xdead, 0xbeef,
     ///                              0xcafe, 0xbabe, 0, 1);
     /// let matches = table.matches(lookupip);
-    /// assert_eq!(matches.len(), 2);
+    /// assert_eq!(matches.count(), 2);
     ///
     /// let lookupip = Ipv6Addr::new(0x2001, 0xdb8, 0xcafe, 0xf00,
     ///                              0xf00, 0xf00, 0, 1);
     /// let matches = table.matches(lookupip);
-    /// assert_eq!(matches.len(), 1);
+    /// assert_eq!(matches.count(), 1);
     /// ```
-    pub fn matches(&self, ip: A) -> Vec<(A, u32, &T)> {
+    pub fn matches(&self, ip: A) -> impl Iterator<Item = (A, u32, &T)> {
         self.inner
-            .matches(&ip.nibbles().as_ref())
-            .iter()
-            .map(|(bits_matched, value)| (ip.mask(*bits_matched), *bits_matched, *value))
-            .collect()
+            .matches(ip.nibbles().as_ref())
+            .into_iter()
+            .map(move |(bits_matched, value)| (ip.mask(bits_matched), bits_matched, value))
     }
 
     /// Returns iterator over prefixes and values.
