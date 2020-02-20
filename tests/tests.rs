@@ -80,7 +80,7 @@ fn matches6() {
     assert_eq!(
         2,
         tbm.matches(Ipv6Addr::from_str("2a00:0099::0").unwrap())
-            .len()
+            .count()
     );
 }
 
@@ -128,7 +128,7 @@ fn matches() {
     let mut tbm = IpLookupTable::new();
     tbm.insert(Ipv4Addr::new(10, 0, 0, 0), 8, 1);
     tbm.insert(Ipv4Addr::new(10, 1, 0, 0), 16, 2);
-    assert_eq!(2, tbm.matches(Ipv4Addr::new(10, 1, 0, 30)).len());
+    assert_eq!(2, tbm.matches(Ipv4Addr::new(10, 1, 0, 30)).count());
 }
 
 #[test]
@@ -193,6 +193,56 @@ fn into_iter() {
 fn send() {
     fn check_if_send<T: Send>() { }
     check_if_send::<IpLookupTable<Ipv4Addr, ()>>();
+}
+
+
+#[test]
+fn matches_all_zeros() {
+    let mut table = IpLookupTable::new();
+    for i in 0..=32 {
+        table.insert(Ipv4Addr::new(0, 0, 0, 0), i, i);
+    }
+
+    for (ip, matched, value) in table.matches(Ipv4Addr::new(0, 0, 0, 0)) {
+        assert_eq!(ip, Ipv4Addr::new(0, 0, 0, 0));
+        assert_eq!(matched, *value);
+    }
+
+    assert_eq!(table.matches(Ipv4Addr::new(0, 0, 0, 0)).count(), 33);
+    assert_eq!(table.matches(Ipv4Addr::new(1, 0, 0, 0)).count(), 8);
+    assert_eq!(table.matches(Ipv4Addr::new(0, 0, 255, 255)).count(), 17);
+    assert_eq!(table.matches(Ipv4Addr::new(255, 255, 255, 255)).count(), 1);
+    assert_eq!(table.matches(Ipv4Addr::new(64, 0, 0, 0)).count(), 2);
+}
+
+#[test]
+fn matches_10_range() {
+    let mut table = IpLookupTable::new();
+    table.insert(Ipv4Addr::new(10, 0, 0, 0), 8, 0);
+    table.insert(Ipv4Addr::new(10, 6, 0, 0), 16, 0);
+    table.insert(Ipv4Addr::new(10, 6, 252, 0), 24, 0);
+
+    assert_eq!(table.matches(Ipv4Addr::new(10, 6, 252, 3)).count(), 3);
+    assert_eq!(table.matches(Ipv4Addr::new(10, 6, 255, 3)).count(), 2);
+    assert_eq!(table.matches(Ipv4Addr::new(11, 6, 255, 3)).count(), 0);
+}
+
+#[test]
+fn matches_empty() {
+    let table: IpLookupTable<Ipv4Addr, ()> = IpLookupTable::new();
+    assert_eq!(table.matches(Ipv4Addr::new(0, 0, 0, 0)).count(), 0);
+}
+
+#[test]
+fn matches_ipv6() {
+    let mut table = IpLookupTable::new();
+    let less_specific = Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 0);
+    let more_specific = Ipv6Addr::new(0x2001, 0xdb8, 0xdead, 0, 0, 0, 0, 0);
+    table.insert(less_specific, 32, "foo");
+    table.insert(more_specific, 48, "bar");
+    assert_eq!(table.matches(less_specific).count(), 1);
+    assert_eq!(table.matches(more_specific).count(), 2);
+    assert_eq!(table.matches(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 0)).count(), 0);
 }
 
 // https://github.com/hroi/treebitmap/issues/7
