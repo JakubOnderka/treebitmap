@@ -175,25 +175,28 @@ impl<T: Sized> TreeBitmap<T> {
 
         for nibble in nibbles {
             let cur_node = *self.trienodes.get(&cur_hdl, cur_index);
-            let match_mask = node::MATCH_MASKS[*nibble as usize];
 
-            if let MatchResult::Match(result_hdl, result_index, matching_bit_index) =
-            cur_node.match_internal(match_mask)
-            {
-                let mut bits_matched = bits_searched;
-                bits_matched += node::BIT_MATCH[matching_bit_index as usize];
-                matches.push((bits_matched, self.results.get(&result_hdl, result_index)));
+            for i in 0..5 {
+                let prefix = *nibble & (!0 << (4 - i));
+                let bitmap = node::gen_bitmap(prefix, i as u32) & node::END_BIT_MASK;
+                if let MatchResult::Match(result_hdl, result_index, _) =
+                    cur_node.match_internal(bitmap)
+                {
+                    let bits_matched = bits_searched + (i as u32);
+                    matches.push((bits_matched, self.results.get(&result_hdl, result_index)));
+                }
             }
 
             if cur_node.is_endnode() {
                 break;
             }
+
+            let match_mask = node::MATCH_MASKS[*nibble as usize];
             match cur_node.match_external(match_mask) {
                 MatchResult::Chase(child_hdl, child_index) => {
                     bits_searched += 4;
                     cur_hdl = child_hdl;
                     cur_index = child_index;
-                    continue;
                 }
                 MatchResult::None => {
                     break;
