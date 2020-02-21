@@ -121,7 +121,7 @@ impl<T: Sized> TreeBitmap<T> {
             let match_mask = node::MATCH_MASKS[*nibble as usize];
 
             if let MatchResult::Match(result_hdl, result_index, matching_bit_index) =
-            cur_node.match_internal(match_mask)
+                cur_node.match_internal(match_mask)
             {
                 let bits_matched = bits_searched + node::BIT_MATCH[matching_bit_index as usize];
                 best_match = Some((result_hdl, result_index, bits_matched));
@@ -159,9 +159,10 @@ impl<T: Sized> TreeBitmap<T> {
     /// longest match lookup of ```nibbles```. Returns bits matched as u32, and mutable reference to T.
     pub fn longest_match_mut(&mut self, nibbles: &[u8]) -> Option<(u32, &mut T)> {
         match self.longest_match_internal(&nibbles) {
-            Some((result_hdl, result_index, bits_matched)) => {
-                Some((bits_matched, self.results.get_mut(&result_hdl, result_index)))
-            }
+            Some((result_hdl, result_index, bits_matched)) => Some((
+                bits_matched,
+                self.results.get_mut(&result_hdl, result_index),
+            )),
             None => None,
         }
     }
@@ -173,7 +174,15 @@ impl<T: Sized> TreeBitmap<T> {
         let mut bits_searched = 0;
         let mut matches = Vec::new();
 
-        for nibble in nibbles {
+        let mut loop_count = 0;
+        loop {
+            let nibble = if loop_count < nibbles.len() {
+                nibbles[loop_count]
+            } else {
+                0
+            };
+            loop_count += 1;
+            let nibble = &nibble;
             let cur_node = *self.trienodes.get(&cur_hdl, cur_index);
 
             for i in 0..5 {
@@ -668,12 +677,16 @@ mod tests {
         let (nibbles_b, mask_b) = (&[0, 10, 0, 10, 0, 10, 0, 0], 24);
         tbm.insert(nibbles_a, mask_a, "foo");
         tbm.insert(nibbles_b, mask_b, "bar");
+
         {
-            let matches = tbm.matches(nibbles_b);
+            let mut matches = tbm.matches(nibbles_b);
             assert_eq!(
                 true,
-                matches.contains(&(mask_a, &"foo")) && matches.contains(&(mask_b, &"bar"))
+                matches.any(|p| p == (mask_a, &"foo")) && matches.any(|p| p == (mask_b, &"bar"))
             );
+        }
+
+        {
             let value = tbm.remove(nibbles_b, mask_b);
             assert_eq!(value, Some("bar"));
             let lookup_result = tbm.longest_match(nibbles_b);

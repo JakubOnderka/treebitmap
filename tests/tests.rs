@@ -102,33 +102,34 @@ fn longest_match() {
     assert_eq!(result, Some((Ipv4Addr::new(100, 64, 0, 0), 10, &100004)));
 
     let result = tbm.longest_match_mut(Ipv4Addr::new(100, 100, 100, 100));
-    assert_eq!(result, Some((Ipv4Addr::new(100, 64, 0, 0), 10, &mut 100004)));
+    assert_eq!(
+        result,
+        Some((Ipv4Addr::new(100, 64, 0, 0), 10, &mut 100004))
+    );
 
     let result = tbm.longest_match(Ipv4Addr::new(100, 64, 0, 100));
     assert_eq!(result, Some((Ipv4Addr::new(100, 64, 0, 0), 24, &10064024)));
 
     let result = tbm.longest_match_mut(Ipv4Addr::new(100, 64, 0, 100));
-    assert_eq!(result, Some((Ipv4Addr::new(100, 64, 0, 0), 24, &mut 10064024)));
+    assert_eq!(
+        result,
+        Some((Ipv4Addr::new(100, 64, 0, 0), 24, &mut 10064024))
+    );
 
     let result = tbm.longest_match(Ipv4Addr::new(100, 64, 1, 100));
     assert_eq!(result, Some((Ipv4Addr::new(100, 64, 1, 0), 24, &10064124)));
 
     let result = tbm.longest_match_mut(Ipv4Addr::new(100, 64, 1, 100));
-    assert_eq!(result, Some((Ipv4Addr::new(100, 64, 1, 0), 24, &mut 10064124)));
+    assert_eq!(
+        result,
+        Some((Ipv4Addr::new(100, 64, 1, 0), 24, &mut 10064124))
+    );
 
     let result = tbm.longest_match(Ipv4Addr::new(200, 200, 200, 200));
     assert_eq!(result, None);
 
     let result = tbm.longest_match_mut(Ipv4Addr::new(200, 200, 200, 200));
     assert_eq!(result, None);
-}
-
-#[test]
-fn matches() {
-    let mut tbm = IpLookupTable::new();
-    tbm.insert(Ipv4Addr::new(10, 0, 0, 0), 8, 1);
-    tbm.insert(Ipv4Addr::new(10, 1, 0, 0), 16, 2);
-    assert_eq!(2, tbm.matches(Ipv4Addr::new(10, 1, 0, 30)).count());
 }
 
 #[test]
@@ -191,10 +192,17 @@ fn into_iter() {
 
 #[test]
 fn send() {
-    fn check_if_send<T: Send>() { }
+    fn check_if_send<T: Send>() {}
     check_if_send::<IpLookupTable<Ipv4Addr, ()>>();
 }
 
+#[test]
+fn matches() {
+    let mut tbm = IpLookupTable::new();
+    tbm.insert(Ipv4Addr::new(10, 0, 0, 0), 8, 1);
+    tbm.insert(Ipv4Addr::new(10, 1, 0, 0), 16, 2);
+    assert_eq!(2, tbm.matches(Ipv4Addr::new(10, 1, 0, 30)).count());
+}
 
 #[test]
 fn matches_all_zeros() {
@@ -242,7 +250,10 @@ fn matches_ipv6() {
     table.insert(more_specific, 48, "bar");
     assert_eq!(table.matches(less_specific).count(), 1);
     assert_eq!(table.matches(more_specific).count(), 2);
-    assert_eq!(table.matches(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 0)).count(), 0);
+    assert_eq!(
+        table.matches(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 0)).count(),
+        0
+    );
 }
 
 // https://github.com/hroi/treebitmap/issues/7
@@ -270,18 +281,20 @@ fn issue_13() {
     let mut table = IpLookupTable::new();
 
     println!("insert 28");
-    table.insert(Ipv4Addr::new(49, 255, 11, 16), 28, ());
+    table.insert(Ipv4Addr::new(49, 255, 11, 16), 28, 28);
     assert_eq!(
         table.exact_match(Ipv4Addr::new(49, 255, 11, 16), 28),
-        Some(&())
+        Some(&28)
     );
     println!("insert 32");
-    table.insert(ADDR, 32, ());
+    table.insert(ADDR, 32, 32);
 
     println!("match 32");
-    assert_eq!(table.exact_match(ADDR, 32), Some(&()));
+    assert_eq!(table.exact_match(ADDR, 32), Some(&32));
     assert!(table.longest_match(ADDR).is_some());
     assert!(table.longest_match_mut(ADDR).is_some());
+
+    assert_eq!(table.matches(ADDR).count(), 2);
 
     let v = table.remove(ADDR, 32);
     println!("removed: {:?}", v);
