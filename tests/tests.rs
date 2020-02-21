@@ -152,21 +152,8 @@ fn into_iter() {
 
 #[test]
 fn send() {
-    use std::sync::Arc;
-    use std::thread;
-
-    let mut tbl = IpLookupTable::new();
-    let (ip, mask, value) = (Ipv4Addr::new(10, 0, 0, 0), 8, 1);
-    tbl.insert(ip, mask, value);
-
-    let arc = Arc::new(tbl);
-    let arc_thread = arc.clone();
-    thread::spawn(move || {
-        let lookup_result = arc_thread.exact_match(Ipv4Addr::new(10, 0, 0, 0), 8);
-        assert_eq!(lookup_result, Some(&1));
-    })
-    .join()
-    .unwrap();
+    fn check_if_send<T: Send>() { }
+    check_if_send::<IpLookupTable<Ipv4Addr, ()>>();
 }
 
 // https://github.com/hroi/treebitmap/issues/7
