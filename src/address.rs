@@ -258,5 +258,4 @@ mod tests {
         );
         assert_eq!(ip, expected);
     }
-
 }
