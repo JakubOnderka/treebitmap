@@ -81,16 +81,31 @@ fn longest_match() {
     let result = tbm.longest_match(Ipv4Addr::new(10, 10, 10, 10));
     assert_eq!(result, Some((Ipv4Addr::new(10, 0, 0, 0), 8, &100002)));
 
+    let result = tbm.longest_match_mut(Ipv4Addr::new(10, 10, 10, 10));
+    assert_eq!(result, Some((Ipv4Addr::new(10, 0, 0, 0), 8, &mut 100002)));
+
     let result = tbm.longest_match(Ipv4Addr::new(100, 100, 100, 100));
     assert_eq!(result, Some((Ipv4Addr::new(100, 64, 0, 0), 10, &100004)));
+
+    let result = tbm.longest_match_mut(Ipv4Addr::new(100, 100, 100, 100));
+    assert_eq!(result, Some((Ipv4Addr::new(100, 64, 0, 0), 10, &mut 100004)));
 
     let result = tbm.longest_match(Ipv4Addr::new(100, 64, 0, 100));
     assert_eq!(result, Some((Ipv4Addr::new(100, 64, 0, 0), 24, &10064024)));
 
+    let result = tbm.longest_match_mut(Ipv4Addr::new(100, 64, 0, 100));
+    assert_eq!(result, Some((Ipv4Addr::new(100, 64, 0, 0), 24, &mut 10064024)));
+
     let result = tbm.longest_match(Ipv4Addr::new(100, 64, 1, 100));
     assert_eq!(result, Some((Ipv4Addr::new(100, 64, 1, 0), 24, &10064124)));
 
+    let result = tbm.longest_match_mut(Ipv4Addr::new(100, 64, 1, 100));
+    assert_eq!(result, Some((Ipv4Addr::new(100, 64, 1, 0), 24, &mut 10064124)));
+
     let result = tbm.longest_match(Ipv4Addr::new(200, 200, 200, 200));
+    assert_eq!(result, None);
+
+    let result = tbm.longest_match_mut(Ipv4Addr::new(200, 200, 200, 200));
     assert_eq!(result, None);
 }
 
@@ -194,6 +209,7 @@ fn issue_13() {
     println!("match 32");
     assert_eq!(table.exact_match(ADDR, 32), Some(&()));
     assert!(table.longest_match(ADDR).is_some());
+    assert!(table.longest_match_mut(ADDR).is_some());
 
     let v = table.remove(ADDR, 32);
     println!("removed: {:?}", v);

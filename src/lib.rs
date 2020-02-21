@@ -176,6 +176,38 @@ where
         }
     }
 
+    /// Perform longest match lookup of `ip` and return the best matching
+    /// prefix, designated by ip, masklen, along with its value as mutable.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use treebitmap::IpLookupTable;
+    /// use std::net::Ipv6Addr;
+    ///
+    /// let mut table = IpLookupTable::new();
+    /// let less_specific = Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 0);
+    /// let more_specific = Ipv6Addr::new(0x2001, 0xdb8, 0xdead, 0, 0, 0, 0, 0);
+    /// table.insert(less_specific, 32, "foo");
+    /// table.insert(more_specific, 48, "bar");
+    ///
+    /// let lookupip = Ipv6Addr::new(0x2001, 0xdb8, 0xdead, 0xbeef,
+    ///                              0xcafe, 0xbabe, 0, 1);
+    /// if let Some((_, _, value)) = table.longest_match_mut(lookupip) {
+    ///     assert_eq!(value, &"bar");
+    ///     *value = &"foo";
+    /// }
+    ///
+    /// let result = table.longest_match(lookupip);
+    /// assert_eq!(result, Some((more_specific, 48, &"foo")));
+    /// ```
+    pub fn longest_match_mut(&mut self, ip: A) -> Option<(A, u32, &mut T)> {
+        match self.inner.longest_match_mut(&ip.nibbles().as_ref()) {
+            Some((bits_matched, value)) => Some((ip.mask(bits_matched), bits_matched, value)),
+            None => None,
+        }
+    }
+
     /// Returns iterator over prefixes and values.
     ///
     /// # Examples

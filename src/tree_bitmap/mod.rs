@@ -101,13 +101,11 @@ impl<T: Sized> TreeBitmap<T> {
         // note: we do not need to touch the external bits
     }
 
-    /// longest match lookup of ```nibbles```. Returns bits matched as u32, and reference to T.
-    pub fn longest_match(&self, nibbles: &[u8]) -> Option<(u32, &T)> {
+    fn longest_match_internal(&self, nibbles: &[u8]) -> Option<(AllocatorHandle, u32, u32)> {
         let mut cur_hdl = self.root_handle();
         let mut cur_index = 0;
-        let mut bits_matched = 0;
         let mut bits_searched = 0;
-        let mut best_match: Option<(AllocatorHandle, u32)> = None; // result handle + index
+        let mut best_match = None; // result handle + index + bites matched
 
         let mut loop_count = 0;
         loop {
@@ -123,11 +121,10 @@ impl<T: Sized> TreeBitmap<T> {
             let match_mask = node::MATCH_MASKS[*nibble as usize];
 
             if let MatchResult::Match(result_hdl, result_index, matching_bit_index) =
-                cur_node.match_internal(match_mask)
+            cur_node.match_internal(match_mask)
             {
-                bits_matched = bits_searched;
-                bits_matched += node::BIT_MATCH[matching_bit_index as usize];
-                best_match = Some((result_hdl, result_index));
+                let bits_matched = bits_searched + node::BIT_MATCH[matching_bit_index as usize];
+                best_match = Some((result_hdl, result_index, bits_matched));
             }
 
             if cur_node.is_endnode() {
@@ -138,7 +135,6 @@ impl<T: Sized> TreeBitmap<T> {
                     bits_searched += 4;
                     cur_hdl = child_hdl;
                     cur_index = child_index;
-                    continue;
                 }
                 MatchResult::None => {
                     break;
@@ -147,9 +143,24 @@ impl<T: Sized> TreeBitmap<T> {
             }
         }
 
-        match best_match {
-            Some((result_hdl, result_index)) => {
+        best_match
+    }
+
+    /// longest match lookup of ```nibbles```. Returns bits matched as u32, and reference to T.
+    pub fn longest_match(&self, nibbles: &[u8]) -> Option<(u32, &T)> {
+        match self.longest_match_internal(&nibbles) {
+            Some((result_hdl, result_index, bits_matched)) => {
                 Some((bits_matched, self.results.get(&result_hdl, result_index)))
+            }
+            None => None,
+        }
+    }
+
+    /// longest match lookup of ```nibbles```. Returns bits matched as u32, and mutable reference to T.
+    pub fn longest_match_mut(&mut self, nibbles: &[u8]) -> Option<(u32, &mut T)> {
+        match self.longest_match_internal(&nibbles) {
+            Some((result_hdl, result_index, bits_matched)) => {
+                Some((bits_matched, self.results.get_mut(&result_hdl, result_index)))
             }
             None => None,
         }
