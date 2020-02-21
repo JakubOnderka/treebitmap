@@ -110,8 +110,7 @@ impl Address for Ipv4Addr {
 
     fn from_nibbles(nibbles: &[u8]) -> Self {
         let mut ret: [u8; 4] = [0; 4];
-        let lim = min(ret.len() * 2, nibbles.len());
-        for (i, nibble) in nibbles.iter().enumerate().take(lim) {
+        for (i, nibble) in nibbles.iter().enumerate().take(ret.len() * 2) {
             match i % 2 {
                 0 => {
                     ret[i / 2] = *nibble << 4;
@@ -150,8 +149,7 @@ impl Address for Ipv6Addr {
 
     fn from_nibbles(nibbles: &[u8]) -> Self {
         let mut ret: [u16; 8] = [0; 8];
-        let lim = min(ret.len() * 4, nibbles.len());
-        for (i, nibble) in nibbles.iter().enumerate().take(lim) {
+        for (i, nibble) in nibbles.iter().enumerate().take(ret.len() * 4) {
             match i % 4 {
                 0 => {
                     ret[i / 4] |= (*nibble as u16) << 12;
@@ -244,6 +242,18 @@ mod tests {
     #[test]
     fn address_ipv4_from_nibbles() {
         let ip: Ipv4Addr = Address::from_nibbles(&[1, 2, 3, 4, 5, 6, 7, 8]);
+        assert_eq!(ip.octets(), [0x12, 0x34, 0x56, 0x78]);
+    }
+
+    #[test]
+    fn address_ipv4_from_nibbles_short() {
+        let ip: Ipv4Addr = Address::from_nibbles(&[]);
+        assert_eq!(ip.octets(), [0, 0, 0, 0]);
+    }
+
+    #[test]
+    fn address_ipv4_from_nibbles_long() {
+        let ip: Ipv4Addr = Address::from_nibbles(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
         assert_eq!(ip.octets(), [0x12, 0x34, 0x56, 0x78]);
     }
 
