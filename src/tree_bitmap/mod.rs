@@ -167,11 +167,11 @@ impl<T: Sized> TreeBitmap<T> {
     }
 
     /// All matches lookup of ```nibbles```. Returns of Vec of tuples, each containing bits matched as u32 and a reference to T.
-    pub fn matches(&self, nibbles: &[u8]) -> Vec<(u32, &T)> {
+    fn matches_internal(&self, nibbles: &[u8]) -> Vec<(u32, AllocatorHandle, u32)> {
         let mut cur_hdl = self.root_handle();
         let mut cur_index = 0;
         let mut bits_searched = 0;
-        let mut matches: Vec<(u32, &T)> = Vec::new();
+        let mut matches = Vec::new();
 
         for nibble in nibbles {
             let cur_node = *self.trienodes.get(&cur_hdl, cur_index);
@@ -183,7 +183,7 @@ impl<T: Sized> TreeBitmap<T> {
                     cur_node.match_internal(bitmap)
                 {
                     let bits_matched = bits_searched + (i as u32);
-                    matches.push((bits_matched, self.results.get(&result_hdl, result_index)));
+                    matches.push((bits_matched, result_hdl, result_index));
                 }
             }
 
@@ -206,6 +206,21 @@ impl<T: Sized> TreeBitmap<T> {
         }
 
         matches
+    }
+
+    /// All matches lookup of ```nibbles```. Returns of Vec of tuples, each containing bits matched as u32 and a reference to T.
+    pub fn matches(&self, nibbles: &[u8]) -> impl Iterator<Item = (u32, &T)> {
+        self.matches_internal(nibbles).into_iter().map(
+            move |(bits_matched, result_hdl, result_index)| {
+                (bits_matched, self.results.get(&result_hdl, result_index))
+            },
+        )
+    }
+
+    /// All matches lookup of ```nibbles```. Returns of Vec of tuples, each containing bits matched as u32 and a reference to T.
+    pub fn matches_mut(&mut self, nibbles: &[u8]) -> MatchesMut<T> {
+        let path = self.matches_internal(nibbles).into_iter();
+        MatchesMut { inner: self, path }
     }
 
     pub fn insert(&mut self, nibbles: &[u8], masklen: u32, value: T) -> Option<T> {
@@ -582,6 +597,26 @@ impl<T> IntoIterator for TreeBitmap<T> {
 impl<T> Drop for IntoIter<T> {
     fn drop(&mut self) {
         for _ in self {}
+    }
+}
+
+pub struct MatchesMut<'a, T: 'a> {
+    inner: &'a mut TreeBitmap<T>,
+    path: std::vec::IntoIter<(u32, AllocatorHandle, u32)>,
+}
+
+impl<'a, T: 'a> Iterator for MatchesMut<'a, T> {
+    type Item = (u32, &'a mut T);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.path.next() {
+            Some((bits_matched, hdl, index)) => unsafe {
+                let ptr: *mut T = self.inner.results.get_mut(&hdl, index);
+                let val_ref = &mut *ptr;
+                Some((bits_matched, val_ref))
+            },
+            None => None,
+        }
     }
 }
 

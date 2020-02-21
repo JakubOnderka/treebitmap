@@ -236,7 +236,14 @@ where
     pub fn matches(&self, ip: A) -> impl Iterator<Item = (A, u32, &T)> {
         self.inner
             .matches(ip.nibbles().as_ref())
-            .into_iter()
+            .map(move |(bits_matched, value)| (ip.mask(bits_matched), bits_matched, value))
+    }
+
+    /// Perform match lookup of `ip` and return the all matching
+    /// prefixes, designated by ip, masklen, along with its mutable value.
+    pub fn matches_mut(&mut self, ip: A) -> impl Iterator<Item = (A, u32, &mut T)> {
+        self.inner
+            .matches_mut(ip.nibbles().as_ref())
             .map(move |(bits_matched, value)| (ip.mask(bits_matched), bits_matched, value))
     }
 
