@@ -125,6 +125,10 @@ where
     /// Perform exact match lookup of `ip`/`masklen` and return the
     /// value.
     ///
+    /// # Panics
+    ///
+    /// Panics if prefix has bits set to the right of mask.
+    ///
     /// # Examples
     ///
     /// ```

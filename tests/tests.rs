@@ -13,6 +13,22 @@ use std::str::FromStr;
 use treebitmap::*;
 
 #[test]
+#[should_panic]
+fn insert_host_bit_set() {
+    let mut tbl = IpLookupTable::new();
+    tbl.insert(Ipv4Addr::new(255, 255, 255, 255), 17, 1);
+}
+
+#[test]
+#[should_panic]
+fn exact_match_host_bit_set() {
+    let mut tbl = IpLookupTable::new();
+    tbl.insert(Ipv4Addr::new(255, 255, 255, 255), 16, 1);
+    tbl.insert(Ipv4Addr::new(255, 255, 255, 255), 32, 2);
+    tbl.exact_match(Ipv4Addr::new(255, 255, 255, 255), 17);
+}
+
+#[test]
 fn remove() {
     let mut tbl = IpLookupTable::new();
     tbl.insert(Ipv4Addr::new(10, 0, 0, 0), 8, 1);
@@ -303,6 +319,7 @@ fn issue_13() {
     assert_eq!(table.matches(ADDR).count(), 2);
 
     let v = table.remove(ADDR, 32);
+    assert_eq!(v, Some(32));
     println!("removed: {:?}", v);
 }
 

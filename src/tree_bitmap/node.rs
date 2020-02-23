@@ -63,7 +63,7 @@ pub fn gen_bitmap(prefix: u8, masklen: u32) -> u32 {
     debug_assert!(prefix < 16); // only nibbles allowed
     debug_assert!(masklen < 5);
     let ret = INTERNAL_LOOKUP_TABLE[masklen as usize][prefix as usize];
-    debug_assert!(ret > 0);
+    assert!(ret > 0, "ret > 0, maybe IP network has host bits set");
     ret
 }
 
