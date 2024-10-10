@@ -20,9 +20,15 @@
 
 #[cfg(feature = "alloc")]
 extern crate alloc;
+#[cfg(feature = "rkyv")]
+extern crate rkyv;
+
+
+#[cfg(feature = "alloc")]
+use alloc::vec::Vec;
+
 #[cfg(feature = "alloc")]
 use core as std;
-
 use std::marker::PhantomData;
 
 mod tree_bitmap;
@@ -35,14 +41,46 @@ use address::Address;
 pub use address::addr::*;
 
 /// A fast, compressed IP lookup table.
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Archive, rkyv::Deserialize, rkyv::Serialize)
+)]
+#[cfg_attr(feature = "bytecheck", archive_attr(derive(rkyv::CheckBytes)))]
+#[derive(Debug)]
 pub struct IpLookupTable<A, T> {
     inner: TreeBitmap<T>,
     _addrtype: PhantomData<A>,
 }
 
+impl<A: Address + Ord, T: Clone + Copy + Default + Ord> PartialEq for IpLookupTable<A, T> {
+    fn eq(&self, other: &Self) -> bool {
+        let mut self_entries: Vec<(A, u32, &T)> = self.iter().collect();
+        let mut other_entries: Vec<(A, u32, &T)> = other.iter().collect();
+
+        if self_entries.len() != other_entries.len() {
+            return false;
+        }
+
+        self_entries.sort_by(|a, b| {
+            a.0.cmp(&b.0)
+                .then_with(|| a.1.cmp(&b.1))
+                .then_with(|| a.2.cmp(&b.2))
+        });
+
+        other_entries.sort_by(|a, b| {
+            a.0.cmp(&b.0)
+                .then_with(|| a.1.cmp(&b.1))
+                .then_with(|| a.2.cmp(&b.2))
+        });
+
+        self_entries.iter().eq(other_entries.iter())
+    }
+}
+
 impl<A, T> IpLookupTable<A, T>
 where
     A: Address,
+    T: Clone + Copy + Default,
 {
     /// Initialize an empty lookup table with no preallocation.
     pub fn new() -> Self {
@@ -85,7 +123,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use treebitmap::IpLookupTable;
+    /// use ip_network_table_deps_treebitmap::IpLookupTable;
     /// use std::net::Ipv6Addr;
     ///
     /// let mut table = IpLookupTable::new();
@@ -106,7 +144,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use treebitmap::IpLookupTable;
+    /// use ip_network_table_deps_treebitmap::IpLookupTable;
     /// use std::net::Ipv6Addr;
     ///
     /// let mut table = IpLookupTable::new();
@@ -132,7 +170,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use treebitmap::IpLookupTable;
+    /// use ip_network_table_deps_treebitmap::IpLookupTable;
     /// use std::net::Ipv6Addr;
     ///
     /// let mut table = IpLookupTable::new();
@@ -154,7 +192,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use treebitmap::IpLookupTable;
+    /// use ip_network_table_deps_treebitmap::IpLookupTable;
     /// use std::net::Ipv6Addr;
     ///
     /// let mut table = IpLookupTable::new();
@@ -180,7 +218,7 @@ where
     /// # Example
     ///
     /// ```
-    /// use treebitmap::IpLookupTable;
+    /// use ip_network_table_deps_treebitmap::IpLookupTable;
     /// use std::net::Ipv6Addr;
     ///
     /// let mut table = IpLookupTable::new();
@@ -212,7 +250,7 @@ where
     /// # Example
     ///
     /// ```
-    /// use treebitmap::IpLookupTable;
+    /// use ip_network_table_deps_treebitmap::IpLookupTable;
     /// use std::net::Ipv6Addr;
     ///
     /// let mut table = IpLookupTable::new();
@@ -244,7 +282,7 @@ where
     /// # Example
     ///
     /// ```
-    /// use treebitmap::IpLookupTable;
+    /// use ip_network_table_deps_treebitmap::IpLookupTable;
     /// use std::net::Ipv6Addr;
     ///
     /// let mut table = IpLookupTable::new();
@@ -282,7 +320,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use treebitmap::IpLookupTable;
+    /// use ip_network_table_deps_treebitmap::IpLookupTable;
     /// use std::net::Ipv6Addr;
     ///
     /// let mut table = IpLookupTable::new();
@@ -308,7 +346,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use treebitmap::IpLookupTable;
+    /// use ip_network_table_deps_treebitmap::IpLookupTable;
     /// use std::net::Ipv6Addr;
     ///
     /// let x: Ipv6Addr = "2001:db8:100::".parse().unwrap();
@@ -339,15 +377,17 @@ where
 impl<A, T> Default for IpLookupTable<A, T>
 where
     A: Address,
+    T: Clone + Copy + Default,
 {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<'a, A, T: 'a> Iterator for Iter<'a, A, T>
+impl<'a, A, T> Iterator for Iter<'a, A, T>
 where
     A: Address,
+    T: 'a + Clone + Copy + Default,
 {
     type Item = (A, u32, &'a T);
 
@@ -361,9 +401,10 @@ where
     }
 }
 
-impl<'a, A, T: 'a> Iterator for IterMut<'a, A, T>
+impl<'a, A, T> Iterator for IterMut<'a, A, T>
 where
     A: Address,
+    T: 'a + Clone + Copy + Default,
 {
     type Item = (A, u32, &'a mut T);
 
@@ -377,9 +418,10 @@ where
     }
 }
 
-impl<'a, A, T: 'a> Iterator for IntoIter<A, T>
+impl<'a, A, T> Iterator for IntoIter<A, T>
 where
     A: Address,
+    T: 'a + Clone + Copy + Default,
 {
     type Item = (A, u32, T);
 
@@ -396,6 +438,7 @@ where
 impl<A, T> IntoIterator for IpLookupTable<A, T>
 where
     A: Address,
+    T: Clone + Copy + Default,
 {
     type Item = (A, u32, T);
     type IntoIter = IntoIter<A, T>;
@@ -430,4 +473,73 @@ pub struct IterMut<'a, A, T: 'a> {
 pub struct IntoIter<A, T> {
     inner: tree_bitmap::IntoIter<T>,
     _addrtype: PhantomData<A>,
+}
+
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    #[test]
+    fn test_partial_eq() {
+        let mut tbl1 = IpLookupTable::<core::net::Ipv4Addr, i32>::new();
+        tbl1.insert(core::net::Ipv4Addr::new(10, 0, 0, 1), 17, 1);
+        tbl1.insert(core::net::Ipv4Addr::new(172, 16, 0, 1), 17, 2);
+        tbl1.insert(core::net::Ipv4Addr::new(192, 168, 1, 1), 17, 3);
+        tbl1.insert(core::net::Ipv4Addr::new(8, 8, 8, 8), 17, 4);
+
+        // insertion order shouldn't affect equality
+        let mut tbl2 = IpLookupTable::<core::net::Ipv4Addr, i32>::new();
+        tbl2.insert(core::net::Ipv4Addr::new(172, 16, 0, 1), 17, 2);
+        tbl2.insert(core::net::Ipv4Addr::new(10, 0, 0, 1), 17, 1);
+        tbl2.insert(core::net::Ipv4Addr::new(8, 8, 8, 8), 17, 4);
+        tbl2.insert(core::net::Ipv4Addr::new(192, 168, 1, 1), 17, 3);
+        assert_eq!(tbl1, tbl2);
+
+        // mismatching data
+        let mut tbl3 = IpLookupTable::<core::net::Ipv4Addr, i32>::new();
+        tbl3.insert(core::net::Ipv4Addr::new(10, 0, 0, 1), 17, 100);
+        tbl3.insert(core::net::Ipv4Addr::new(172, 16, 0, 1), 17, 2);
+        tbl3.insert(core::net::Ipv4Addr::new(192, 168, 1, 1), 17, 3);
+        tbl3.insert(core::net::Ipv4Addr::new(8, 8, 8, 8), 17, 4);
+        assert_ne!(tbl1, tbl3);
+
+        // IP missing
+        let mut tbl4 = IpLookupTable::<core::net::Ipv4Addr, i32>::new();
+        tbl4.insert(core::net::Ipv4Addr::new(10, 0, 0, 1), 17, 1);
+        tbl4.insert(core::net::Ipv4Addr::new(172, 16, 0, 1), 17, 2);
+        tbl4.insert(core::net::Ipv4Addr::new(192, 168, 1, 1), 17, 3);
+        assert_ne!(tbl1, tbl4);
+
+        // Extra IP
+        let mut tbl5 = IpLookupTable::<core::net::Ipv4Addr, i32>::new();
+        tbl5.insert(core::net::Ipv4Addr::new(10, 0, 0, 1), 17, 1);
+        tbl5.insert(core::net::Ipv4Addr::new(172, 16, 0, 1), 17, 2);
+        tbl5.insert(core::net::Ipv4Addr::new(192, 168, 1, 1), 17, 3);
+        tbl5.insert(core::net::Ipv4Addr::new(8, 8, 8, 8), 17, 4);
+        tbl5.insert(core::net::Ipv4Addr::new(1, 1, 1, 1), 17, 4);
+        assert_ne!(tbl1, tbl5);
+
+
+        // IPV6
+        let mut tbl6 = IpLookupTable::<core::net::Ipv6Addr, i32>::new();
+        tbl6.insert(core::net::Ipv6Addr::new(0x2001, 0x0db8, 0x85a3, 0, 0, 0x8a2e, 0x0370, 0x7334), 128, 1);
+        tbl6.insert(core::net::Ipv6Addr::new(0x2607, 0xf8b0, 0x400d, 0x0, 0x0, 0x0, 0x0, 0x200e), 128, 2);
+        tbl6.insert(core::net::Ipv6Addr::new(0x2a00, 0x1450, 0x4001, 0x80b, 0x0, 0x0, 0x0, 0x2003), 128, 3);
+        tbl6.insert(core::net::Ipv6Addr::new(0x2404, 0x6800, 0x4003, 0x802, 0x0, 0x0, 0x0, 0x200e), 128, 4);
+
+        let mut tbl7 = IpLookupTable::<core::net::Ipv6Addr, i32>::new();
+        tbl7.insert(core::net::Ipv6Addr::new(0x2607, 0xf8b0, 0x400d, 0x0, 0x0, 0x0, 0x0, 0x200e), 128, 2);
+        tbl7.insert(core::net::Ipv6Addr::new(0x2001, 0x0db8, 0x85a3, 0, 0, 0x8a2e, 0x0370, 0x7334), 128, 1);
+        tbl7.insert(core::net::Ipv6Addr::new(0x2404, 0x6800, 0x4003, 0x802, 0x0, 0x0, 0x0, 0x200e), 128, 4);
+        tbl7.insert(core::net::Ipv6Addr::new(0x2a00, 0x1450, 0x4001, 0x80b, 0x0, 0x0, 0x0, 0x2003), 128, 3);
+        assert_eq!(tbl6, tbl7);
+
+        let mut tbl8 = IpLookupTable::<core::net::Ipv6Addr, i32>::new();
+        tbl8.insert(core::net::Ipv6Addr::new(0x2001, 0x0db8, 0x85a3, 0, 0, 0x8a2e, 0x0370, 0x7334), 128, 1);
+        tbl8.insert(core::net::Ipv6Addr::new(0x2607, 0xf8b0, 0x400d, 0x0, 0x0, 0x0, 0x0, 0x200e), 128, 200);
+        tbl8.insert(core::net::Ipv6Addr::new(0x2a00, 0x1450, 0x4001, 0x80b, 0x0, 0x0, 0x0, 0x2003), 128, 3);
+        tbl8.insert(core::net::Ipv6Addr::new(0x2404, 0x6800, 0x4003, 0x802, 0x0, 0x0, 0x0, 0x200e), 128, 4);
+        assert_ne!(tbl6, tbl8);
+
+    }
 }

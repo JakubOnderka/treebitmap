@@ -11,20 +11,25 @@ use std::cmp;
 
 mod allocator;
 mod node;
+#[cfg(feature = "rkyv")]
+mod rkyv_impl;
 
 use self::allocator::{Allocator, AllocatorHandle};
 use self::node::{MatchResult, Node};
-use std::ptr;
 
-// #[derive(Debug)]
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Archive, rkyv::Deserialize, rkyv::Serialize)
+)]
+#[cfg_attr(feature = "bytecheck", archive_attr(derive(rkyv::CheckBytes)))]
+#[derive(Debug)]
 pub struct TreeBitmap<T: Sized> {
     trienodes: Allocator<Node>,
     results: Allocator<T>,
     len: usize,
-    should_drop: bool, // drop contents on drop?
 }
 
-impl<T: Sized> TreeBitmap<T> {
+impl<T: Sized + Clone + Copy + Default> TreeBitmap<T> {
     /// Returns ````TreeBitmap ```` with 0 start capacity.
     pub fn new() -> Self {
         Self::with_capacity(0)
@@ -40,13 +45,7 @@ impl<T: Sized> TreeBitmap<T> {
             trienodes: trieallocator,
             results: Allocator::with_capacity(n),
             len: 0,
-            should_drop: true,
         }
-    }
-
-    /// Returns handle to root node.
-    fn root_handle(&self) -> AllocatorHandle {
-        AllocatorHandle::generate(1, 0)
     }
 
     /// Returns the root node.
@@ -99,51 +98,6 @@ impl<T: Sized> TreeBitmap<T> {
         }
         node.make_normalnode();
         // note: we do not need to touch the external bits
-    }
-
-    fn longest_match_internal(&self, nibbles: &[u8]) -> Option<(AllocatorHandle, u32, u32)> {
-        let mut cur_hdl = self.root_handle();
-        let mut cur_index = 0;
-        let mut bits_searched = 0;
-        let mut best_match = None; // result handle + index + bites matched
-
-        let mut loop_count = 0;
-        loop {
-            let nibble = if loop_count < nibbles.len() {
-                nibbles[loop_count]
-            } else {
-                0
-            };
-            loop_count += 1;
-
-            let nibble = &nibble;
-            let cur_node = *self.trienodes.get(&cur_hdl, cur_index);
-            let match_mask = node::MATCH_MASKS[*nibble as usize];
-
-            if let MatchResult::Match(result_hdl, result_index, matching_bit_index) =
-                cur_node.match_internal(match_mask)
-            {
-                let bits_matched = bits_searched + node::BIT_MATCH[matching_bit_index as usize];
-                best_match = Some((result_hdl, result_index, bits_matched));
-            }
-
-            if cur_node.is_endnode() {
-                break;
-            }
-            match cur_node.match_external(match_mask) {
-                MatchResult::Chase(child_hdl, child_index) => {
-                    bits_searched += 4;
-                    cur_hdl = child_hdl;
-                    cur_index = child_index;
-                }
-                MatchResult::None => {
-                    break;
-                }
-                _ => unreachable!(),
-            }
-        }
-
-        best_match
     }
 
     /// longest match lookup of ```nibbles```. Returns bits matched as u32, and reference to T.
@@ -338,55 +292,14 @@ impl<T: Sized> TreeBitmap<T> {
         self.len
     }
 
-    fn exact_match_internal(&self, nibbles: &[u8], masklen: u32) -> Option<(AllocatorHandle, u32)> {
-        let mut cur_hdl = self.root_handle();
-        let mut cur_index = 0;
-        let mut bits_left = masklen;
-
-        let mut loop_count = 0;
-        loop {
-            let nibble = if loop_count < nibbles.len() {
-                nibbles[loop_count]
-            } else {
-                0
-            };
-            loop_count += 1;
-
-            let nibble = &nibble;
-            let cur_node = self.trienodes.get(&cur_hdl, cur_index);
-            let bitmap = node::gen_bitmap(*nibble, cmp::min(bits_left, 4)) & node::END_BIT_MASK;
-            let reached_final_node = bits_left < 4 || (cur_node.is_endnode() && bits_left == 4);
-
-            if reached_final_node {
-                return match cur_node.match_internal(bitmap) {
-                    MatchResult::Match(result_hdl, result_index, _) => {
-                        Some((result_hdl, result_index))
-                    }
-                    _ => None,
-                }
-            }
-
-            match cur_node.match_external(bitmap) {
-                MatchResult::Chase(child_hdl, child_index) => {
-                    cur_hdl = child_hdl;
-                    cur_index = child_index;
-                    bits_left -= 4;
-                }
-                _ => return None,
-            }
-        }
-    }
-
     pub fn exact_match(&self, nibbles: &[u8], masklen: u32) -> Option<&T> {
-        self.exact_match_internal(nibbles, masklen).map(move |(result_hdl, result_index)| {
-            self.results.get(&result_hdl, result_index)
-        })
+        self.exact_match_internal(nibbles, masklen)
+            .map(move |(result_hdl, result_index)| self.results.get(&result_hdl, result_index))
     }
 
     pub fn exact_match_mut(&mut self, nibbles: &[u8], masklen: u32) -> Option<&mut T> {
-        self.exact_match_internal(nibbles, masklen).map(move |(result_hdl, result_index)| {
-            self.results.get_mut(&result_hdl, result_index)
-        })
+        self.exact_match_internal(nibbles, masklen)
+            .map(move |(result_hdl, result_index)| self.results.get_mut(&result_hdl, result_index))
     }
 
     /// Remove prefix. Returns existing value if the prefix previously existed.
@@ -547,7 +460,7 @@ fn next<T: Sized>(
     }
 }
 
-impl<'a, T: 'a> Iterator for Iter<'a, T> {
+impl<'a, T: 'a + Clone + Copy + Default> Iterator for Iter<'a, T> {
     type Item = (Vec<u8>, u32, &'a T); //(nibbles, masklen, &T)
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -561,7 +474,7 @@ impl<'a, T: 'a> Iterator for Iter<'a, T> {
     }
 }
 
-impl<'a, T: 'a> Iterator for IterMut<'a, T> {
+impl<'a, T: 'a + Clone + Copy + Default> Iterator for IterMut<'a, T> {
     type Item = (Vec<u8>, u32, &'a mut T); //(nibbles, masklen, &T)
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -582,14 +495,13 @@ pub struct IntoIter<T> {
     nibbles: Vec<u8>,
 }
 
-impl<'a, T: 'a> Iterator for IntoIter<T> {
+impl<'a, T: 'a + Clone + Copy + Default> Iterator for IntoIter<T> {
     type Item = (Vec<u8>, u32, T); //(nibbles, masklen, T)
 
     fn next(&mut self) -> Option<Self::Item> {
         match next(&self.inner, &mut self.path, &mut self.nibbles) {
             Some((path, bits_matched, hdl, index)) => {
-                let value = self.inner.results.get(&hdl, index);
-                let value = unsafe { ptr::read(value) };
+                let value = *self.inner.results.get(&hdl, index);
                 Some((path, bits_matched, value))
             }
             None => None,
@@ -597,14 +509,13 @@ impl<'a, T: 'a> Iterator for IntoIter<T> {
     }
 }
 
-impl<T> IntoIterator for TreeBitmap<T> {
+impl<T: Clone + Copy + Default> IntoIterator for TreeBitmap<T> {
     type Item = (Vec<u8>, u32, T); //(nibbles, masklen, T)
     type IntoIter = IntoIter<T>;
 
-    fn into_iter(mut self) -> IntoIter<T> {
+    fn into_iter(self) -> IntoIter<T> {
         let root_hdl = self.root_handle();
         let root_node = *self.trienodes.get(&root_hdl, 0);
-        self.should_drop = false; // IntoIter will drop contents
         IntoIter {
             inner: self,
             path: vec![PathElem {
@@ -616,18 +527,12 @@ impl<T> IntoIterator for TreeBitmap<T> {
     }
 }
 
-impl<T> Drop for IntoIter<T> {
-    fn drop(&mut self) {
-        for _ in self {}
-    }
-}
-
 pub struct MatchesMut<'a, T: 'a> {
     inner: &'a mut TreeBitmap<T>,
     path: std::vec::IntoIter<(u32, AllocatorHandle, u32)>,
 }
 
-impl<'a, T: 'a> Iterator for MatchesMut<'a, T> {
+impl<'a, T: 'a + Clone + Copy + Default> Iterator for MatchesMut<'a, T> {
     type Item = (u32, &'a mut T);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -642,13 +547,101 @@ impl<'a, T: 'a> Iterator for MatchesMut<'a, T> {
     }
 }
 
-impl<T> Drop for TreeBitmap<T> {
-    fn drop(&mut self) {
-        if self.should_drop {
-            for (_, _, item) in self.iter() {
-                unsafe {
-                    ptr::read(item);
+impl<T> TrieAccess for TreeBitmap<T> {
+    fn get_node(&self, hdl: &AllocatorHandle, index: u32) -> Node {
+        *self.trienodes.get(&hdl, index)
+    }
+}
+
+trait TrieAccess {
+    fn get_node(&self, hdl: &AllocatorHandle, index: u32) -> Node;
+
+    /// Returns handle to root node.
+    #[inline]
+    fn root_handle(&self) -> AllocatorHandle {
+        AllocatorHandle::generate(1, 0)
+    }
+
+    #[inline]
+    fn longest_match_internal(&self, nibbles: &[u8]) -> Option<(AllocatorHandle, u32, u32)> {
+        let mut cur_hdl = self.root_handle();
+        let mut cur_index = 0;
+        let mut bits_searched = 0;
+        let mut best_match = None; // result handle + index + bites matched
+
+        let mut loop_count = 0;
+        loop {
+            let nibble = if loop_count < nibbles.len() {
+                nibbles[loop_count]
+            } else {
+                0
+            };
+            loop_count += 1;
+
+            let cur_node = self.get_node(&cur_hdl, cur_index);
+            let match_mask = node::MATCH_MASKS[nibble as usize];
+
+            if let MatchResult::Match(result_hdl, result_index, matching_bit_index) =
+                cur_node.match_internal(match_mask)
+            {
+                let bits_matched = bits_searched + node::BIT_MATCH[matching_bit_index as usize];
+                best_match = Some((result_hdl, result_index, bits_matched));
+            }
+
+            if cur_node.is_endnode() {
+                break;
+            }
+            match cur_node.match_external(match_mask) {
+                MatchResult::Chase(child_hdl, child_index) => {
+                    bits_searched += 4;
+                    cur_hdl = child_hdl;
+                    cur_index = child_index;
                 }
+                MatchResult::None => {
+                    break;
+                }
+                _ => unreachable!(),
+            }
+        }
+
+        best_match
+    }
+
+    #[inline]
+    fn exact_match_internal(&self, nibbles: &[u8], masklen: u32) -> Option<(AllocatorHandle, u32)> {
+        let mut cur_hdl = self.root_handle();
+        let mut cur_index = 0;
+        let mut bits_left = masklen;
+
+        let mut loop_count = 0;
+        loop {
+            let nibble = if loop_count < nibbles.len() {
+                nibbles[loop_count]
+            } else {
+                0
+            };
+            loop_count += 1;
+
+            let cur_node = self.get_node(&cur_hdl, cur_index);
+            let bitmap = node::gen_bitmap(nibble, cmp::min(bits_left, 4)) & node::END_BIT_MASK;
+            let reached_final_node = bits_left < 4 || (cur_node.is_endnode() && bits_left == 4);
+
+            if reached_final_node {
+                return match cur_node.match_internal(bitmap) {
+                    MatchResult::Match(result_hdl, result_index, _) => {
+                        Some((result_hdl, result_index))
+                    }
+                    _ => None,
+                };
+            }
+
+            match cur_node.match_external(bitmap) {
+                MatchResult::Chase(child_hdl, child_index) => {
+                    cur_hdl = child_hdl;
+                    cur_index = child_index;
+                    bits_left -= 4;
+                }
+                _ => return None,
             }
         }
     }
@@ -750,43 +743,8 @@ mod tests {
         assert_eq!(iter.next(), None);
     }
 
+    #[derive(Clone, Copy, Default, Debug)]
     struct Thing {
-        id: usize,
-    }
-    impl Drop for Thing {
-        fn drop(&mut self) {
-            println!("dropping id {}", self.id);
-        }
-    }
-
-    #[test]
-    fn drop() {
-        let mut tbm: TreeBitmap<Thing> = TreeBitmap::new();
-        let (nibbles_a, mask_a) = (&[0], 0);
-        let (nibbles_b, mask_b) = (&[0, 10], 8);
-        let (nibbles_c, mask_c) = (&[0, 10, 0, 10, 0, 10], 24);
-        let (nibbles_d, mask_d) = (&[0, 10, 0, 10, 1, 11], 24);
-        tbm.insert(nibbles_a, mask_a, Thing { id: 1 });
-        tbm.insert(nibbles_b, mask_b, Thing { id: 2 });
-        tbm.insert(nibbles_c, mask_c, Thing { id: 3 });
-        tbm.insert(nibbles_d, mask_d, Thing { id: 4 });
-        println!("should drop");
-    }
-
-    #[test]
-    fn into_iter_drop() {
-        let mut tbm: TreeBitmap<Thing> = TreeBitmap::new();
-        let (nibbles_a, mask_a) = (&[0], 0);
-        let (nibbles_b, mask_b) = (&[0, 10], 8);
-        let (nibbles_c, mask_c) = (&[0, 10, 0, 10, 0, 10], 24);
-        let (nibbles_d, mask_d) = (&[0, 10, 0, 10, 1, 11], 24);
-        tbm.insert(nibbles_a, mask_a, Thing { id: 1 });
-        tbm.insert(nibbles_b, mask_b, Thing { id: 2 });
-        tbm.insert(nibbles_c, mask_c, Thing { id: 3 });
-        tbm.insert(nibbles_d, mask_d, Thing { id: 4 });
-        let mut iter = tbm.into_iter();
-        iter.next();
-        iter.next();
-        println!("should drop 3 - 4");
+        _id: usize,
     }
 }
