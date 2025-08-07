@@ -1,13 +1,13 @@
+extern crate ip_network_table_deps_treebitmap;
 extern crate rand;
-extern crate treebitmap;
 
 use std::mem;
 use std::net::{Ipv4Addr, Ipv6Addr};
 
 use self::rand::{thread_rng, Rng};
 
-use treebitmap::address::Address;
-use treebitmap::*;
+use ip_network_table_deps_treebitmap::address::Address;
+use ip_network_table_deps_treebitmap::*;
 
 const NUMBER_OF_ITERS: usize = 10; // number of times to run each test
 const NUMBER_OF_PEERS: usize = 64; // number of distinct values
@@ -128,7 +128,7 @@ impl<T, A: Address> SlowRouter<T, A> {
 }
 
 #[test]
-#[cfg(not(miri))]  // miri is too slow
+#[cfg(not(miri))] // miri is too slow
 fn ipv6_random_test() {
     for _ in 0..NUMBER_OF_ITERS {
         let mut tbl = IpLookupTable::new();

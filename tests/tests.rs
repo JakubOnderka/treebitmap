@@ -4,13 +4,13 @@
 // This file may not be copied, modified, or distributed except according to those terms.
 //
 
-extern crate treebitmap;
+extern crate ip_network_table_deps_treebitmap;
 
 mod rand_test;
 
+use ip_network_table_deps_treebitmap::*;
 use std::net::{Ipv4Addr, Ipv6Addr};
 use std::str::FromStr;
-use treebitmap::*;
 
 #[test]
 #[should_panic]

@@ -401,7 +401,9 @@ pub enum MatchResult {
 
 #[cfg(test)]
 mod tests {
+    extern crate std;
     use super::*;
+    use tree_bitmap::node::tests::std::println;
 
     #[test]
     fn test_trienode_new() {

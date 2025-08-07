@@ -403,7 +403,9 @@ impl<T: Sized> Allocator<T> {
 
 #[cfg(test)]
 mod tests {
+    extern crate std;
     use super::*;
+    use tree_bitmap::allocator::tests::std::println;
 
     #[test]
     fn bucketvec_move_to() {

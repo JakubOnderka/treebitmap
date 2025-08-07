@@ -16,7 +16,6 @@
 //! by W. Eatherton, Z. Dittia, G. Varghes.
 //!
 #![cfg_attr(feature = "alloc", no_std)]
-#![cfg_attr(feature = "alloc", feature(alloc))]
 
 #[cfg(feature = "alloc")]
 extern crate alloc;
@@ -30,9 +29,6 @@ use tree_bitmap::TreeBitmap;
 
 pub mod address;
 use address::Address;
-
-#[cfg(feature = "alloc")]
-pub use address::addr::*;
 
 /// A fast, compressed IP lookup table.
 pub struct IpLookupTable<A, T> {
@@ -85,7 +81,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use treebitmap::IpLookupTable;
+    /// use ip_network_table_deps_treebitmap::IpLookupTable;
     /// use std::net::Ipv6Addr;
     ///
     /// let mut table = IpLookupTable::new();
@@ -106,7 +102,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use treebitmap::IpLookupTable;
+    /// use ip_network_table_deps_treebitmap::IpLookupTable;
     /// use std::net::Ipv6Addr;
     ///
     /// let mut table = IpLookupTable::new();
@@ -132,7 +128,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use treebitmap::IpLookupTable;
+    /// use ip_network_table_deps_treebitmap::IpLookupTable;
     /// use std::net::Ipv6Addr;
     ///
     /// let mut table = IpLookupTable::new();
@@ -154,7 +150,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use treebitmap::IpLookupTable;
+    /// use ip_network_table_deps_treebitmap::IpLookupTable;
     /// use std::net::Ipv6Addr;
     ///
     /// let mut table = IpLookupTable::new();
@@ -180,7 +176,7 @@ where
     /// # Example
     ///
     /// ```
-    /// use treebitmap::IpLookupTable;
+    /// use ip_network_table_deps_treebitmap::IpLookupTable;
     /// use std::net::Ipv6Addr;
     ///
     /// let mut table = IpLookupTable::new();
@@ -212,7 +208,7 @@ where
     /// # Example
     ///
     /// ```
-    /// use treebitmap::IpLookupTable;
+    /// use ip_network_table_deps_treebitmap::IpLookupTable;
     /// use std::net::Ipv6Addr;
     ///
     /// let mut table = IpLookupTable::new();
@@ -244,7 +240,7 @@ where
     /// # Example
     ///
     /// ```
-    /// use treebitmap::IpLookupTable;
+    /// use ip_network_table_deps_treebitmap::IpLookupTable;
     /// use std::net::Ipv6Addr;
     ///
     /// let mut table = IpLookupTable::new();
@@ -282,7 +278,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use treebitmap::IpLookupTable;
+    /// use ip_network_table_deps_treebitmap::IpLookupTable;
     /// use std::net::Ipv6Addr;
     ///
     /// let mut table = IpLookupTable::new();
@@ -308,7 +304,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use treebitmap::IpLookupTable;
+    /// use ip_network_table_deps_treebitmap::IpLookupTable;
     /// use std::net::Ipv6Addr;
     ///
     /// let x: Ipv6Addr = "2001:db8:100::".parse().unwrap();

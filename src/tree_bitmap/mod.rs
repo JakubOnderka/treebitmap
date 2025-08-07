@@ -8,6 +8,8 @@ use alloc::vec;
 #[cfg(feature = "alloc")]
 use alloc::vec::Vec;
 use std::cmp;
+#[cfg(not(feature = "alloc"))]
+use std::vec;
 
 mod allocator;
 mod node;
@@ -363,7 +365,7 @@ impl<T: Sized> TreeBitmap<T> {
                         Some((result_hdl, result_index))
                     }
                     _ => None,
-                }
+                };
             }
 
             match cur_node.match_external(bitmap) {
@@ -378,15 +380,13 @@ impl<T: Sized> TreeBitmap<T> {
     }
 
     pub fn exact_match(&self, nibbles: &[u8], masklen: u32) -> Option<&T> {
-        self.exact_match_internal(nibbles, masklen).map(move |(result_hdl, result_index)| {
-            self.results.get(&result_hdl, result_index)
-        })
+        self.exact_match_internal(nibbles, masklen)
+            .map(move |(result_hdl, result_index)| self.results.get(&result_hdl, result_index))
     }
 
     pub fn exact_match_mut(&mut self, nibbles: &[u8], masklen: u32) -> Option<&mut T> {
-        self.exact_match_internal(nibbles, masklen).map(move |(result_hdl, result_index)| {
-            self.results.get_mut(&result_hdl, result_index)
-        })
+        self.exact_match_internal(nibbles, masklen)
+            .map(move |(result_hdl, result_index)| self.results.get_mut(&result_hdl, result_index))
     }
 
     /// Remove prefix. Returns existing value if the prefix previously existed.
@@ -624,7 +624,7 @@ impl<T> Drop for IntoIter<T> {
 
 pub struct MatchesMut<'a, T: 'a> {
     inner: &'a mut TreeBitmap<T>,
-    path: std::vec::IntoIter<(u32, AllocatorHandle, u32)>,
+    path: vec::IntoIter<(u32, AllocatorHandle, u32)>,
 }
 
 impl<'a, T: 'a> Iterator for MatchesMut<'a, T> {
@@ -656,7 +656,10 @@ impl<T> Drop for TreeBitmap<T> {
 
 #[cfg(test)]
 mod tests {
+    extern crate std;
+
     use super::*;
+    use tree_bitmap::tests::std::println;
 
     #[test]
     fn len() {
